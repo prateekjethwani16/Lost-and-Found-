@@ -60,7 +60,7 @@ app.get('/api/items', async (req, res) => {
 // POST new item (supports both JSON body with image data and Multer multipart file upload)
 app.post('/api/items', upload.single('imageFile'), async (req, res) => {
   try {
-    const { title, description, location, contact } = req.body;
+    const { title, name, description, location, contact } = req.body;
     let image = req.body.image;
 
     // If a file was uploaded through Multer
@@ -68,18 +68,60 @@ app.post('/api/items', upload.single('imageFile'), async (req, res) => {
       image = `/uploads/${req.file.filename}`;
     }
 
-    if (!title || !description || !image) {
+    const itemName = (name || title || '').trim();
+    const itemContact = (contact || '').trim();
+
+    if (!itemName || !description || !image) {
       return res.status(400).json({
-        error: 'Title, description, and image are required.',
+        error: 'Name, description, and image are required.',
       });
     }
 
+    // Name validation: cannot contain numbers
+    if (/\d/.test(itemName)) {
+      return res.status(400).json({
+        error: 'Name should not contain numbers.',
+      });
+    }
+
+    // Contact validation: must be valid email (with @ and .) or phone number (max 10 numbers)
+    if (!itemContact) {
+      return res.status(400).json({
+        error: 'Contact info is required.',
+      });
+    }
+
+    if (itemContact.includes('@')) {
+      if (!itemContact.includes('.')) {
+        return res.status(400).json({
+          error: "Email must contain '@' and '.'.",
+        });
+      }
+    } else if (/^\d+$/.test(itemContact)) {
+      if (itemContact.length > 10) {
+        return res.status(400).json({
+          error: 'Phone number cannot be more than 10 numbers.',
+        });
+      }
+    } else {
+      if (/[a-zA-Z]/.test(itemContact)) {
+        return res.status(400).json({
+          error: "Email must contain '@' and '.'.",
+        });
+      } else {
+        return res.status(400).json({
+          error: 'Phone number cannot be more than 10 numbers.',
+        });
+      }
+    }
+
     const newItem = new Item({
-      title,
-      description,
+      title: itemName,
+      name: itemName,
+      description: description.trim(),
       image,
       location: location || 'Not specified',
-      contact: contact || 'Not specified',
+      contact: itemContact,
     });
 
     const savedItem = await newItem.save();

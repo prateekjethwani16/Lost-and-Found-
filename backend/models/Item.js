@@ -3,7 +3,10 @@ const mongoose = require('mongoose');
 const itemSchema = new mongoose.Schema({
   title: {
     type: String,
-    required: [true, 'Please provide an item title'],
+    trim: true,
+  },
+  name: {
+    type: String,
     trim: true,
   },
   description: {

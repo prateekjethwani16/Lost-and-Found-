@@ -11,7 +11,7 @@ function App() {
   const [message, setMessage] = useState(null);
 
   // Form states
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [contact, setContact] = useState('');
@@ -91,18 +91,58 @@ function App() {
     }
   };
 
-  // Handle Form Submission
+  // Handle Form Submission with Validations
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!title.trim()) {
-      showNotification('error', 'Item title is required.');
+    // 1. Name validation (should not have numbers)
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      showNotification('error', 'Name is required.');
       return;
     }
-    if (!description.trim()) {
+    if (/\d/.test(trimmedName)) {
+      showNotification('error', 'Name should not contain numbers.');
+      return;
+    }
+
+    // 2. Description validation
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription) {
       showNotification('error', 'Description is required.');
       return;
     }
+
+    // 3. Contact validation (must be either email or phone number in one textbox)
+    const trimmedContact = contact.trim();
+    if (!trimmedContact) {
+      showNotification('error', 'Contact info is required.');
+      return;
+    }
+
+    if (trimmedContact.includes('@')) {
+      // Email validation: must have @ and .
+      if (!trimmedContact.includes('.')) {
+        showNotification('error', "Email must contain '@' and '.'.");
+        return;
+      }
+    } else if (/^\d+$/.test(trimmedContact)) {
+      // Phone number validation: cannot be more than 10 numbers
+      if (trimmedContact.length > 10) {
+        showNotification('error', 'Phone number cannot be more than 10 numbers.');
+        return;
+      }
+    } else {
+      // Input is neither valid phone number nor has @
+      if (/[a-zA-Z]/.test(trimmedContact)) {
+        showNotification('error', "Email must contain '@' and '.'.");
+      } else {
+        showNotification('error', 'Phone number cannot be more than 10 numbers.');
+      }
+      return;
+    }
+
+    // 4. Image validation
     if (!image.trim()) {
       showNotification('error', 'Please select or enter an image.');
       return;
@@ -111,10 +151,11 @@ function App() {
     try {
       setSubmitting(true);
       const payload = {
-        title: title.trim(),
-        description: description.trim(),
+        title: trimmedName,
+        name: trimmedName,
+        description: trimmedDescription,
         location: location.trim() || 'Not specified',
-        contact: contact.trim() || 'Not specified',
+        contact: trimmedContact,
         image: image.trim(),
       };
 
@@ -133,14 +174,15 @@ function App() {
       }
 
       if (!res.ok) {
-        throw new Error('Failed to save item');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to save item');
       }
 
       const createdItem = await res.json();
       setItems((prev) => [createdItem, ...prev]);
 
       // Reset form
-      setTitle('');
+      setName('');
       setDescription('');
       setLocation('');
       setContact('');
@@ -151,7 +193,7 @@ function App() {
       showNotification('success', 'Lost item posted successfully.');
     } catch (err) {
       console.error(err);
-      showNotification('error', 'Could not post item. Try again.');
+      showNotification('error', err.message || 'Could not post item. Try again.');
     } finally {
       setSubmitting(false);
     }
@@ -228,21 +270,23 @@ function App() {
               </div>
             )}
 
+            {/* Name Input */}
             <div className="form-group">
-              <label className="form-label" htmlFor="title">
-                Title *
+              <label className="form-label" htmlFor="name">
+                Name *
               </label>
               <input
-                id="title"
+                id="name"
                 className="form-input"
                 type="text"
-                placeholder="Item name"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
 
+            {/* Description Input */}
             <div className="form-group">
               <label className="form-label" htmlFor="description">
                 Description *
@@ -250,13 +294,14 @@ function App() {
               <textarea
                 id="description"
                 className="form-textarea"
-                placeholder="Description of the item"
+                placeholder="Enter description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
               />
             </div>
 
+            {/* Location Input */}
             <div className="form-group">
               <label className="form-label" htmlFor="location">
                 Location
@@ -265,26 +310,29 @@ function App() {
                 id="location"
                 className="form-input"
                 type="text"
-                placeholder="Where it was lost"
+                placeholder="Enter location"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
               />
             </div>
 
+            {/* Contact Input (Single textbox for Email or Phone Number) */}
             <div className="form-group">
               <label className="form-label" htmlFor="contact">
-                Contact
+                Contact *
               </label>
               <input
                 id="contact"
                 className="form-input"
                 type="text"
-                placeholder="Phone or email"
+                placeholder="Enter email or phone number"
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
+                required
               />
             </div>
 
+            {/* Photo Input */}
             <div className="form-group">
               <label className="form-label">Photo *</label>
 
@@ -321,7 +369,7 @@ function App() {
                     <input
                       type="url"
                       className="form-input"
-                      placeholder="Paste image URL here"
+                      placeholder="Enter image URL"
                       value={image}
                       onChange={(e) => setImage(e.target.value)}
                     />
@@ -365,7 +413,7 @@ function App() {
                 <div key={item._id} className="item-card">
                   <img
                     src={getImageSource(item.image)}
-                    alt={item.title}
+                    alt={item.name || item.title}
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = PLACEHOLDER_IMG;
@@ -373,7 +421,7 @@ function App() {
                   />
 
                   <div className="card-content">
-                    <h3 className="item-title">{item.title}</h3>
+                    <h3 className="item-title">{item.name || item.title}</h3>
                     <p className="item-desc">{item.description}</p>
 
                     <div className="item-info">
